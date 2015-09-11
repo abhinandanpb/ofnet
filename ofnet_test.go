@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/contiv/ofnet/ovsdbDriver"
-  "github.com/contiv/ofnet/libpkt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/contiv/ofnet/libpkt"
+	"github.com/contiv/ofnet/ovsdbDriver"
+	"runtime"
 )
 
 const NUM_MASTER = 2
@@ -470,19 +471,21 @@ func ofctlFlowMatch(flowList []string, tableId int, matchStr string) bool {
 	return false
 }
 
-func TestCreateOvsSetup(t *testing.T){
+/*
+func TestCreateOvsSetup_Working(t *testing.T){
 
     var resp bool
   	rpcPort := uint16(9600)
   	ovsPort := uint16(9601)
   	lclIP := net.ParseIP("10.10.10.10")
+		runtime.GOMAXPROCS(2)
 
     ofnetAgent, err := NewOfnetAgent("vrouter", lclIP, rpcPort, ovsPort)
   	if err != nil {
   		log.Fatalf("Error creating ofnet agent. Err: %v", err)
   	}
 
-  	//defer func() { ofnetAgent.Delete() }()
+  	defer func() { ofnetAgent.Delete() }()
 
   	// Override MyAddr to local host
   	ofnetAgent.MyAddr = "127.0.0.1"
@@ -513,7 +516,7 @@ func TestCreateOvsSetup(t *testing.T){
   		log.Fatalf("Error adding controller to ovs: %s", brName)
   	}
 
-  	//defer func() { ovsDriver.DeleteBridge(brName) }()
+  	defer func() { ovsDriver.DeleteBridge(brName) }()
 
   	// Wait for switch to connect to controller
   	time.Sleep(5 * time.Second)
@@ -526,15 +529,24 @@ func TestCreateOvsSetup(t *testing.T){
 		   fmt.Printf("Error creating the port. Err: %v", err)
 		   log.Errorf("Failed to create a port")
 	  }
-
+    time.Sleep(2*time.Second)
     err = ovsDriver.CreatePort("port13", "internal", 11)
     if err != nil {
 		   fmt.Printf("Error creating the port. Err: %v", err)
 		   log.Errorf("Failed to create a port")
 	  }
-
-		sPort,_:= ovsDriver.GetOfpPortNo("port12")
-		dPort,_:= ovsDriver.GetOfpPortNo("port13")
+    time.Sleep(5*time.Second)
+		sPort,err:= ovsDriver.GetOfpPortNo("port12")
+		if err!=nil {
+			  fmt.Println("sPort")
+        fmt.Println(err)
+ 	  }
+      //time.Sleep(5*time.Second)
+		dPort,err:= ovsDriver.GetOfpPortNo("port13")
+		if err!=nil {
+			 fmt.Println("dPort")
+			 fmt.Println(err)
+		}
 
     sMacAddr, _ := net.ParseMAC("02:02:02:02:02:02")
 	  sIpAddr := net.ParseIP("20.20.20.20")
@@ -556,11 +568,134 @@ func TestCreateOvsSetup(t *testing.T){
         Vlan:    11,
         IpAddr:  dIpAddr,
     }
+
     err = ofnetAgent.AddLocalEndpoint(endpoint)
     if err != nil {
       log.Errorf("Error adding endpoint. Err: %v", err)
     }
+    ch := make(chan bool,1)
+		go libpkt.VerifyPacket(ovsDriver,"port13","20.20.20.20","20.20.20.30","02:02:02:02:02:02","02:02:02:02:02:03",80,120,ch)
+
 		log.Infof("TRYing to Send packet")
-    libpkt.SendPacket(ovsDriver,"port12","20.20.20.20","20.20.20.30","02:02:02:02:02:02","02:02:02:02:02:03",80,120)
-		libpkt.VerifyPacket(ovsDriver,"port13","20.20.20.20","20.20.20.30","02:02:02:02:02:02","02:02:02:02:02:03",80,120)
+
+		for i:=0 ; i<5 ; i++ {
+			libpkt.SendPacket(ovsDriver,"port12","20.20.20.20","20.20.20.30","02:02:02:02:02:02","02:02:02:02:02:03",80,120,11)
+		}
+		<-ch
+		//time.Sleep(10*time.Second)
+}
+*/
+func TestCreateOvsSetup(t *testing.T) {
+
+	var resp bool
+	var sPort uint32
+	rpcPort := uint16(9600)
+	ovsPort := uint16(9601)
+	lclIP := net.ParseIP("10.10.10.10")
+	runtime.GOMAXPROCS(2)
+
+	ofnetAgent, err := NewOfnetAgent("vrouter", lclIP, rpcPort, ovsPort)
+	if err != nil {
+		log.Fatalf("Error creating ofnet agent. Err: %v", err)
+	}
+
+	//defer func() { ofnetAgent.Delete() }()
+
+	// Override MyAddr to local host
+	ofnetAgent.MyAddr = "127.0.0.1"
+
+	// Create a Master
+	ofnetMaster := NewOfnetMaster(uint16(9602))
+
+	defer func() { ofnetMaster.Delete() }()
+
+	masterInfo := OfnetNode{
+		HostAddr: "127.0.0.1",
+		HostPort: uint16(9602),
+	}
+
+	// connect vrtr agent to master
+	err = ofnetAgent.AddMaster(&masterInfo, &resp)
+	if err != nil {
+		log.Errorf("Error adding master %+v. Err: %v", masterInfo, err)
+	}
+
+	log.Infof("Created vrouter ofnet agent: %v", ofnetAgent)
+
+	brName := "ovsbr10"
+	ovsDriver := ovsdbDriver.NewOvsDriver(brName)
+
+	err = ovsDriver.AddController("127.0.0.1", ovsPort)
+	if err != nil {
+		log.Fatalf("Error adding controller to ovs: %s", brName)
+	}
+
+	//	defer func() { ovsDriver.DeleteBridge(brName) }()
+
+	// Wait for switch to connect to controller
+	time.Sleep(5 * time.Second)
+
+	// Create a vlan for the endpoint
+	ofnetAgent.AddVlan(11, 11)
+
+	err = ovsDriver.CreatePort("port12", "internal", 11)
+	if err != nil {
+		fmt.Printf("Error creating the port. Err: %v", err)
+		log.Errorf("Failed to create a port")
+	}
+	//time.Sleep(2*time.Second)
+	err = ovsDriver.CreatePort("port13", "internal", 11)
+	if err != nil {
+		fmt.Printf("Error creating the port. Err: %v", err)
+		log.Errorf("Failed to create a port")
+	}
+	//time.Sleep(5*time.Second)
+
+	sPort, err = ovsDriver.GetOfpPortNo("port12")
+	if err != nil {
+		fmt.Println("sPort")
+		fmt.Println(err)
+	}
+	//time.Sleep(5*time.Second)
+	dPort, err := ovsDriver.GetOfpPortNo("port13")
+	if err != nil {
+		fmt.Println("dPort")
+		fmt.Println(err)
+	}
+
+	sMacAddr, _ := net.ParseMAC("02:02:02:02:02:02")
+	sIpAddr := net.ParseIP("20.20.20.20")
+	endpoint := EndpointInfo{
+		PortNo:  sPort,
+		MacAddr: sMacAddr,
+		Vlan:    11,
+		IpAddr:  sIpAddr,
+	}
+	err = ofnetAgent.AddLocalEndpoint(endpoint)
+	if err != nil {
+		log.Errorf("Error adding endpoint. Err: %v", err)
+	}
+	dMacAddr, _ := net.ParseMAC("02:02:02:02:02:03")
+	dIpAddr := net.ParseIP("20.20.20.30")
+	endpoint = EndpointInfo{
+		PortNo:  dPort,
+		MacAddr: dMacAddr,
+		Vlan:    11,
+		IpAddr:  dIpAddr,
+	}
+
+	err = ofnetAgent.AddLocalEndpoint(endpoint)
+	if err != nil {
+		log.Errorf("Error adding endpoint. Err: %v", err)
+	}
+	//  ch := make(chan bool,1)
+	go libpkt.VerifyPacket(ovsDriver, "port13", "20.20.20.20", "20.20.20.30", "02:02:02:02:02:02", "02:02:02:02:02:03", 80, 120)
+
+	log.Infof("TRYing to Send packet")
+
+	for i := 0; i < 5; i++ {
+		libpkt.SendPacket(ovsDriver, "port12", "20.20.20.20", "20.20.20.30", "02:02:02:02:02:02", "02:02:02:02:02:03", 80, 120, 11)
+	}
+	//	<-ch
+	//time.Sleep(10*time.Second)
 }
