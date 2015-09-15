@@ -656,7 +656,7 @@ func TestCreateOvsSetup(t *testing.T) {
 		fmt.Println("sPort")
 		fmt.Println(err)
 	}
-	//time.Sleep(5*time.Second)
+	time.Sleep(5 * time.Second)
 	dPort, err := ovsDriver.GetOfpPortNo("port13")
 	if err != nil {
 		fmt.Println("dPort")
@@ -688,13 +688,19 @@ func TestCreateOvsSetup(t *testing.T) {
 	if err != nil {
 		log.Errorf("Error adding endpoint. Err: %v", err)
 	}
+	ipv4Layer := &libpkt.IPv4Layer{
+		SrcIP: "20.20.20.20",
+		DstIP: "20.20.20.30",
+	}
+	pkt := &libpkt.Packet{SrcMac: "02:02:02:02:02:02", DstMac: "02:02:02:02:02:03", IPv4: ipv4Layer}
+
 	//  ch := make(chan bool,1)
-	go libpkt.VerifyPacket(ovsDriver, "port13", "20.20.20.20", "20.20.20.30", "02:02:02:02:02:02", "02:02:02:02:02:03", 80, 120)
+	go libpkt.VerifyPacket(ovsDriver, "port13", pkt)
 
 	log.Infof("TRYing to Send packet")
 
 	for i := 0; i < 5; i++ {
-		libpkt.SendPacket(ovsDriver, "port12", "20.20.20.20", "20.20.20.30", "02:02:02:02:02:02", "02:02:02:02:02:03", 80, 120, 11)
+		libpkt.SendPacket(ovsDriver, "port12", pkt)
 	}
 	//	<-ch
 	//time.Sleep(10*time.Second)
