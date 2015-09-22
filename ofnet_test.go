@@ -592,14 +592,14 @@ func TestCreateOvsSetupIPv4(t *testing.T) {
 	rpcPort := uint16(9600)
 	ovsPort := uint16(9601)
 	lclIP := net.ParseIP("10.10.10.10")
-	runtime.GOMAXPROCS(2)
+	runtime.GOMAXPROCS(4)
 
 	ofnetAgent, err := NewOfnetAgent("vrouter", lclIP, rpcPort, ovsPort)
 	if err != nil {
 		log.Fatalf("Error creating ofnet agent. Err: %v", err)
 	}
 
-	//defer func() { ofnetAgent.Delete() }()
+	defer func() { ofnetAgent.Delete() }()
 
 	// Override MyAddr to local host
 	ofnetAgent.MyAddr = "127.0.0.1"
@@ -630,7 +630,7 @@ func TestCreateOvsSetupIPv4(t *testing.T) {
 		log.Fatalf("Error adding controller to ovs: %s", brName)
 	}
 
-	//	defer func() { ovsDriver.DeleteBridge(brName) }()
+	defer func() { ovsDriver.DeleteBridge(brName) }()
 
 	// Wait for switch to connect to controller
 	time.Sleep(5 * time.Second)
@@ -692,17 +692,31 @@ func TestCreateOvsSetupIPv4(t *testing.T) {
 		SrcIP: "20.20.20.20",
 		DstIP: "20.20.20.30",
 	}
+        ipv4Layer1 := &libpkt.IPv4Layer{
+                SrcIP: "20.20.20.50",
+                DstIP: "20.20.20.30",
+        }
+        ipv4Layer2 := &libpkt.IPv4Layer{
+                SrcIP: "20.20.20.60",
+                DstIP: "20.20.20.30",
+        }
+
 	pkt := &libpkt.Packet{SrcMAC: "02:02:02:02:02:02", DstMAC: "02:02:02:02:02:03", IPv4: ipv4Layer}
-
+        pkt1 := &libpkt.Packet{SrcMAC: "02:02:02:02:02:02", DstMAC: "02:02:02:02:02:03", IPv4: ipv4Layer1}
+        pkt2 := &libpkt.Packet{SrcMAC: "02:02:02:02:02:02", DstMAC: "02:02:02:02:02:03", IPv4: ipv4Layer2}
 	ch := make(chan bool, 1)
-	go libpkt.VerifyPacket(ovsDriver, "port13", pkt, ch, 10, 5)
+	go libpkt.VerifyPacket(ovsDriver, "port13", pkt, ch, 10, 50)
+        time.Sleep(time.Second*1)
+     go libpkt.SendPacket(ovsDriver, "port12", pkt1, 50)
 
-	//	for i := 0; i < 5; i++ {
-	libpkt.SendPacket(ovsDriver, "port12", pkt, 5)
-	//	}
-	if <-ch {
-	}
-	//time.Sleep(10*time.Second)
+     go	libpkt.SendPacket(ovsDriver, "port12", pkt, 50)
+     go libpkt.SendPacket(ovsDriver, "port12", pkt2, 50)
+             if done := <-ch; done {
+                log.Printf("Test Case verified")
+        } else {
+                t.Fatalf("Verfication of %d packet sent from %s to %s failed", 100, "port13", "port14")
+        }
+
 }
 
 func TestCreateOvsSetupArp(t *testing.T) {
@@ -712,14 +726,14 @@ func TestCreateOvsSetupArp(t *testing.T) {
 	rpcPort := uint16(9600)
 	ovsPort := uint16(9601)
 	lclIP := net.ParseIP("10.10.10.10")
-	runtime.GOMAXPROCS(2)
+	runtime.GOMAXPROCS(4)
 
 	ofnetAgent, err := NewOfnetAgent("vxlan", lclIP, rpcPort, ovsPort)
 	if err != nil {
 		log.Fatalf("Error creating ofnet agent. Err: %v", err)
 	}
 
-	//defer func() { ofnetAgent.Delete() }()
+	defer func() { ofnetAgent.Delete() }()
 
 	// Override MyAddr to local host
 	ofnetAgent.MyAddr = "127.0.0.1"
@@ -750,7 +764,7 @@ func TestCreateOvsSetupArp(t *testing.T) {
 		log.Fatalf("Error adding controller to ovs: %s", brName)
 	}
 
-	//	defer func() { ovsDriver.DeleteBridge(brName) }()
+        defer func() { ovsDriver.DeleteBridge(brName) }()
 
 	// Wait for switch to connect to controller
 	time.Sleep(5 * time.Second)
@@ -814,17 +828,37 @@ func TestCreateOvsSetupArp(t *testing.T) {
 		SourceHwAddress:   "02:02:02:02:02:02",
 		DstHwAddress:      "00:00:00:00:00:00",
 	}
+                arpLayer1 := &libpkt.ArpLayer{
+                SourceProtAddress: "20.20.20.20",
+                DstProtAddress:    "20.20.20.31",
+                Operation:         1,
+                SourceHwAddress:   "02:02:02:02:02:02",
+                DstHwAddress:      "00:00:00:00:00:00",
+        }
+        arpLayer2 := &libpkt.ArpLayer{
+                SourceProtAddress: "20.20.20.20",
+                DstProtAddress:    "20.20.20.32",
+                Operation:         1,
+                SourceHwAddress:   "02:02:02:02:02:02",
+                DstHwAddress:      "00:00:00:00:00:00",
+        }
+
 	pkt := &libpkt.Packet{SrcMAC: "02:02:02:02:02:02", DstMAC: "FF:FF:FF:FF:FF:FF", Arp: arpLayer}
+        pkt1 := &libpkt.Packet{SrcMAC: "02:02:02:02:02:02", DstMAC: "FF:FF:FF:FF:FF:FF", Arp: arpLayer1}
+        pkt2 := &libpkt.Packet{SrcMAC: "02:02:02:02:02:02", DstMAC: "FF:FF:FF:FF:FF:FF", Arp: arpLayer2}
 
-	ch := make(chan bool, 1)
-	go libpkt.VerifyPacket(ovsDriver, "port13", pkt, ch, 10, 5)
+        ch := make(chan bool, 1)
+        go libpkt.VerifyPacket(ovsDriver, "port13", pkt, ch, 10, 50)
+        time.Sleep(time.Second*1)
+        go libpkt.SendPacket(ovsDriver, "port12", pkt1, 50)
 
-	//	for i := 0; i < 5; i++ {
-	libpkt.SendPacket(ovsDriver, "port12", pkt, 5)
-	//	}
-	if <-ch {
-	}
-
+        go libpkt.SendPacket(ovsDriver, "port12", pkt, 50)
+        go libpkt.SendPacket(ovsDriver, "port12", pkt2, 50)
+        if done := <-ch; done {
+             log.Printf("Test Case verified")
+        } else {
+             t.Fatalf("Verfication of %d packet sent from %s to %s failed", 100, "port13", "port14")
+        }
 }
 
 func TestCreateOvsSetupEth(t *testing.T) {
@@ -834,9 +868,9 @@ func TestCreateOvsSetupEth(t *testing.T) {
 	rpcPort := uint16(9600)
 	ovsPort := uint16(9601)
 	lclIP := net.ParseIP("10.10.10.10")
-	runtime.GOMAXPROCS(2)
+	runtime.GOMAXPROCS(4)
 
-	ofnetAgent, err := NewOfnetAgent("vrouter", lclIP, rpcPort, ovsPort)
+	ofnetAgent, err := NewOfnetAgent("vxlan", lclIP, rpcPort, ovsPort)
 	if err != nil {
 		log.Fatalf("Error creating ofnet agent. Err: %v", err)
 	}
@@ -931,14 +965,21 @@ func TestCreateOvsSetupEth(t *testing.T) {
 		log.Errorf("Error adding endpoint. Err: %v", err)
 	}
 	pkt := &libpkt.Packet{SrcMAC: "02:02:02:02:02:02", DstMAC: "02:02:02:02:02:03"}
+        pkt1 := &libpkt.Packet{SrcMAC: "02:02:02:02:02:05", DstMAC: "02:02:02:02:02:03"}
+        pkt2 := &libpkt.Packet{SrcMAC: "02:02:02:02:02:06", DstMAC: "02:02:02:02:02:03"}
+        
+        ch := make(chan bool, 1)
+        go libpkt.VerifyPacket(ovsDriver, "port13", pkt, ch, 10, 50)
+        time.Sleep(time.Second*1)
+        go libpkt.SendPacket(ovsDriver, "port12", pkt1, 50)
 
-	ch := make(chan bool, 1)
-	go libpkt.VerifyPacket(ovsDriver, "port13", pkt, ch, 10, 5)
-
-	libpkt.SendPacket(ovsDriver, "port12", pkt, 5)
-
-	if <-ch {
-	}
+        go libpkt.SendPacket(ovsDriver, "port12", pkt, 50)
+        go libpkt.SendPacket(ovsDriver, "port12", pkt2, 50)
+        if done := <-ch; done {
+             log.Printf("Test Case verified")
+        } else {
+             t.Fatalf("Verfication of %d packet sent from %s to %s failed", 100, "port13", "port14")
+        }
 
 }
 
@@ -956,7 +997,7 @@ func TestCreateOvsSetupIPv6(t *testing.T) {
 		log.Fatalf("Error creating ofnet agent. Err: %v", err)
 	}
 
-	defer func() { ofnetAgent.Delete() }()
+//	defer func() { ofnetAgent.Delete() }()
 
 	// Override MyAddr to local host
 	ofnetAgent.MyAddr = "127.0.0.1"
@@ -987,7 +1028,7 @@ func TestCreateOvsSetupIPv6(t *testing.T) {
 		log.Fatalf("Error adding controller to ovs: %s", brName)
 	}
 
-	defer func() { ovsDriver.DeleteBridge(brName) }()
+//	defer func() { ovsDriver.DeleteBridge(brName) }()
 
 	// Wait for switch to connect to controller
 	time.Sleep(5 * time.Second)
