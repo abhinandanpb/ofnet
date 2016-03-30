@@ -710,7 +710,7 @@ func TestOfnetVlrouteAddDelete(t *testing.T) {
 		}
 
 		// verify flow entry exists
-		ipFlowMatch := fmt.Sprintf("priority=100,ip,metadata=0x100000000/0xff00000000,nw_dst=20.20.20.20")
+		ipFlowMatch := fmt.Sprintf("priority=100,ip,nw_dst=20.20.20.20")
 		ipTableId := IP_TBL_ID
 		if !ofctlFlowMatch(flowList, ipTableId, ipFlowMatch) {
 			t.Errorf("Could not find the route %s on ovs %s", ipFlowMatch, brName)
@@ -749,7 +749,7 @@ func TestOfnetVlrouteAddDelete(t *testing.T) {
 			t.Errorf("Error getting flow entries. Err: %v", err)
 		}
 		// verify flow entry exists
-		ipFlowMatch = fmt.Sprintf("priority=100,ip,metadata=0x100000000/0xff00000000,nw_dst=20.20.20.20")
+		ipFlowMatch = fmt.Sprintf("priority=100,ip,nw_dst=20.20.20.20")
 		ipTableId = IP_TBL_ID
 		if ofctlFlowMatch(flowList, ipTableId, ipFlowMatch) {
 			t.Errorf("Still found the flow %s on ovs %s", ipFlowMatch, brName)
@@ -798,7 +798,7 @@ func TestOfnetBgpVlrouteAddDelete(t *testing.T) {
 		if err != nil {
 			t.Errorf("Error getting flow entries. Err: %v", err)
 		}
-		ipFlowMatch := fmt.Sprintf("priority=100,ip,metadata=0x100000000/0xff00000000,nw_dst=20.20.20.20")
+		ipFlowMatch := fmt.Sprintf("priority=100,ip,nw_dst=20.20.20.20")
 		ipTableId := IP_TBL_ID
 		if !ofctlFlowMatch(flowList, ipTableId, ipFlowMatch) {
 			t.Errorf("Could not find the route %s on ovs %s", ipFlowMatch, brName)
@@ -819,7 +819,7 @@ func TestOfnetBgpVlrouteAddDelete(t *testing.T) {
 			t.Errorf("Error getting flow entries. Err: %v", err)
 		}
 
-		ipFlowMatch = fmt.Sprintf("priority=100,ip,metadata=0x100000000/0xff00000000,nw_dst=20.20.20.20")
+		ipFlowMatch = fmt.Sprintf("priority=100,ip,nw_dst=20.20.20.20")
 		ipTableId = IP_TBL_ID
 		if ofctlFlowMatch(flowList, ipTableId, ipFlowMatch) {
 			t.Errorf("Found the route %s on ovs %s which was withdrawn", ipFlowMatch, brName)
