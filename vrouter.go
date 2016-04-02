@@ -356,7 +356,7 @@ func (self *Vrouter) AddVlan(vlanId uint16, vni uint32, vrf string) error {
 	vlan.Vni = vni
 	vlan.vtepVlanFlowDb = make(map[uint32]*ofctrl.Flow)
 
-	_, ok := self.agent.CreateVrf(vrf)
+	_, ok := self.agent.createVrf(vrf)
 	if !ok {
 		return errors.New("Error creating Vrf")
 	}
@@ -421,7 +421,7 @@ func (self *Vrouter) RemoveVlan(vlanId uint16, vni uint32, vrf string) error {
 
 	// Remove it from DB
 	delete(self.vlanDb, vlanId)
-	err := self.agent.DeleteVrf(vrf)
+	err := self.agent.deleteVrf(vrf)
 	if err != nil {
 		return err
 	}

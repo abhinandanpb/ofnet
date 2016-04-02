@@ -704,7 +704,7 @@ func (self *OfnetAgent) DeleteLocalProtoRoute(path *OfnetProtoRouteInfo) {
 	}
 }
 
-func (self *OfnetAgent) CreateVrf(Vrf string) (uint16, bool) {
+func (self *OfnetAgent) createVrf(Vrf string) (uint16, bool) {
 
 	log.Infof("Received create vrf for %v \n", Vrf)
 
@@ -735,7 +735,7 @@ func (self *OfnetAgent) CreateVrf(Vrf string) (uint16, bool) {
 	return vrfInfo.VrfId, ok
 }
 
-func (self *OfnetAgent) DeleteVrf(Vrf string) error {
+func (self *OfnetAgent) deleteVrf(Vrf string) error {
 
 	if vrfid, ok := self.vrfNameIdMap[Vrf]; ok {
 		self.vrfDb[Vrf].NumNetworks--

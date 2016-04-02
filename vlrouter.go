@@ -286,7 +286,7 @@ func (self *Vlrouter) AddVlan(vlanId uint16, vni uint32, vrf string) error {
 
 	vrf = "default"
 	self.agent.vlanVrf[vlanId] = &vrf
-	self.agent.CreateVrf(vrf)
+	self.agent.createVrf(vrf)
 	return nil
 }
 
@@ -294,6 +294,7 @@ func (self *Vlrouter) AddVlan(vlanId uint16, vni uint32, vrf string) error {
 func (self *Vlrouter) RemoveVlan(vlanId uint16, vni uint32, vrf string) error {
 	// FIXME: Add this for multiple VRF support
 	delete(self.agent.vlanVrf, vlanId)
+        self.agent.deleteVrf(vrf)
 	return nil
 }
 

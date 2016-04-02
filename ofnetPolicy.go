@@ -124,15 +124,9 @@ func (self *PolicyAgent) AddEndpoint(endpoint *OfnetEndpoint) error {
 	log.Infof("Adding dst group entry for endpoint: %+v", endpoint)
 	vrf := self.agent.vlanVrf[endpoint.Vlan]
 
-	//Currently non default vrf is supported only for vxlan routing mode
-	//if *vrf != "default" && endpoint.Vni == 0 {
-	//	return nil
-	//}
-
 	log.Infof("Recevied add endpoint for vrf %v", *vrf)
 
 	vrfid := self.agent.vrfNameIdMap[*vrf]
-	log.Infof("Vrfid = %v", vrfid)
 	vrfMetadata, vrfMetadataMask := Vrfmetadata(*vrfid)
 	// Install the Dst group lookup flow
 	dstGrpFlow, err := self.dstGrpTable.NewFlow(ofctrl.FlowMatch{
@@ -174,12 +168,6 @@ func (self *PolicyAgent) AddEndpoint(endpoint *OfnetEndpoint) error {
 func (self *PolicyAgent) DelEndpoint(endpoint *OfnetEndpoint) error {
 	// find the dst group flow
 
-	//Currently non default vrf is supported only for vxlan routing mode
-	vrf := self.agent.vlanVrf[endpoint.Vlan]
-
-	if *vrf != "default" && endpoint.Vni == 0 {
-		return nil
-	}
 	dstGrp := self.DstGrpFlow[endpoint.EndpointID]
 	if dstGrp == nil {
 		return errors.New("Dst Group not found")

@@ -366,7 +366,7 @@ func (self *Vxlan) RemoveVtepPort(portNo uint32, remoteIp net.IP) error {
 func (self *Vxlan) AddVlan(vlanId uint16, vni uint32, vrf string) error {
 	var err error
 	self.agent.vlanVrf[vlanId] = &vrf
-	self.agent.CreateVrf(vrf)
+	self.agent.createVrf(vrf)
 	// check if the vlan already exists. if it does, we are done
 	if self.vlanDb[vlanId] != nil {
 		return nil
@@ -472,7 +472,7 @@ func (self *Vxlan) AddVlan(vlanId uint16, vni uint32, vrf string) error {
 	self.vlanDb[vlanId] = vlan
 
 	self.agent.vlanVrf[vlanId] = &vrf
-	self.agent.CreateVrf(vrf)
+	self.agent.createVrf(vrf)
 	return nil
 }
 
@@ -507,7 +507,7 @@ func (self *Vxlan) RemoveVlan(vlanId uint16, vni uint32, vrf string) error {
 	// Remove it from DB
 	delete(self.vlanDb, vlanId)
 	delete(self.agent.vlanVrf, vlanId)
-	self.agent.DeleteVrf(vrf)
+	self.agent.deleteVrf(vrf)
 	return nil
 }
 

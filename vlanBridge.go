@@ -196,14 +196,14 @@ func (vl *VlanBridge) RemoveVtepPort(portNo uint32, remoteIP net.IP) error {
 // AddVlan Add a vlan.
 func (vl *VlanBridge) AddVlan(vlanID uint16, vni uint32, vrf string) error {
 	vl.agent.vlanVrf[vlanID] = &vrf
-	vl.agent.CreateVrf(vrf)
+	vl.agent.createVrf(vrf)
 	return nil
 }
 
 // RemoveVlan Remove a vlan
 func (vl *VlanBridge) RemoveVlan(vlanID uint16, vni uint32, vrf string) error {
 	delete(vl.agent.vlanVrf, vlanID)
-	vl.agent.DeleteVrf(vrf)
+	vl.agent.deleteVrf(vrf)
 	return nil
 }
 
