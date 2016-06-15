@@ -159,7 +159,7 @@ func (self *OfnetBgp) StartProtoServer(routerInfo *OfnetProtoRouterInfo) error {
 	intf, _ := net.InterfaceByName(self.intfName)
 	vrf := "default"
 	epid := self.agent.getEndpointIdByIpVrf(net.ParseIP(self.routerIP), vrf)
-	default_vlan := 1
+	default_vlan := uint16(1)
 	_, ok := self.agent.createVrf(vrf)
 	if !ok {
 		log.Errorf("Error Creating default vrf for Bgp")
