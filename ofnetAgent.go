@@ -574,7 +574,7 @@ func (self *OfnetAgent) AddNetwork(vlanId uint16, vni uint32, Gw string, Vrf str
 func (self *OfnetAgent) RemoveNetwork(vlanId uint16, vni uint32, Gw string, Vrf string) error {
 	// Dont handle endpointDB operations during this time
 	self.lockDB()
-	self.unlockDB()
+	defer self.unlockDB()
 
 	vrf := self.vlanVrf[vlanId]
 	gwEpid := self.getEndpointIdByIpVrf(net.ParseIP(Gw), *vrf)
