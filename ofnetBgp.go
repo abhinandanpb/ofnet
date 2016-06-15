@@ -157,13 +157,15 @@ func (self *OfnetBgp) StartProtoServer(routerInfo *OfnetProtoRouterInfo) error {
 	}
 
 	intf, _ := net.InterfaceByName(self.intfName)
-	epid := self.agent.getEndpointIdByIpVrf(net.ParseIP(self.routerIP), "default")
-
-	_, ok := self.agent.createVrf("default")
+	vrf := "default"
+	epid := self.agent.getEndpointIdByIpVrf(net.ParseIP(self.routerIP), vrf)
+	default_vlan := 1
+	_, ok := self.agent.createVrf(vrf)
 	if !ok {
 		log.Errorf("Error Creating default vrf for Bgp")
 		return errors.New("Error creating default vrf")
 	}
+	self.agent.vlanVrf[default_vlan] = &vrf
 
 	epreg := &OfnetEndpoint{
 		EndpointID:   epid,
@@ -172,7 +174,7 @@ func (self *OfnetBgp) StartProtoServer(routerInfo *OfnetProtoRouterInfo) error {
 		IpMask:       net.ParseIP("255.255.255.255"),
 		Vrf:          "default",                  // FIXME set VRF correctly
 		MacAddrStr:   intf.HardwareAddr.String(), //link.Attrs().HardwareAddr.String(),
-		Vlan:         1,
+		Vlan:         default_vlan,
 		PortNo:       ofPortno,
 		Timestamp:    time.Now(),
 	}
