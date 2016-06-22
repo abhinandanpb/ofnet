@@ -274,6 +274,7 @@ func (self *OfnetBgp) DeleteProtoNeighbor() error {
 	self.bgpServer.PeerDelete(p)
 
 	bgpEndpoint := self.agent.getEndpointByIpVrf(net.ParseIP(self.myBgpPeer), "default")
+	
 	self.agent.datapath.RemoveEndpoint(bgpEndpoint)
 	delete(self.agent.endpointDb, bgpEndpoint.EndpointID)
 	self.myBgpPeer = ""
