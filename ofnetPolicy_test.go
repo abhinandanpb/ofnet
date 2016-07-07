@@ -221,5 +221,5 @@ func TestPolicyAddDelete(t *testing.T) {
 	log.Infof("Verified all flows are deleted")
 
 	// Delete the bridge
-	ovsDriver.DeleteBridge(brName)
+	//ovsDriver.DeleteBridge(brName)
 }
