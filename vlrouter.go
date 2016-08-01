@@ -185,7 +185,6 @@ func (self *Vlrouter) AddLocalEndpoint(endpoint OfnetEndpoint) error {
 
 	// save the flow entry
 	self.portVlanFlowDb[endpoint.PortNo] = portVlanFlow
-
 	outPort, err := self.ofSwitch.OutputPort(endpoint.PortNo)
 	if err != nil {
 		log.Errorf("Error creating output port %d. Err: %v", endpoint.PortNo, err)
@@ -202,7 +201,6 @@ func (self *Vlrouter) AddLocalEndpoint(endpoint OfnetEndpoint) error {
 		log.Errorf("Error creating flow for endpoint: %+v. Err: %v", endpoint, err)
 		return err
 	}
-
 	destMacAddr, _ := net.ParseMAC(endpoint.MacAddrStr)
 
 	// Set Mac addresses
@@ -235,9 +233,8 @@ func (self *Vlrouter) AddLocalEndpoint(endpoint OfnetEndpoint) error {
 		if self.agent.GetRouterInfo() != nil {
 			path.nextHopIP = self.agent.GetRouterInfo().RouterIP
 		}
-		self.agent.AddLocalProtoRoute(path)
+		self.agent.AddLocalProtoRoute([]*OfnetProtoRouteInfo{path})
 	}
-
 	if endpoint.Ipv6Addr != nil && endpoint.Ipv6Addr.String() != "" {
 		err = self.AddLocalIpv6Flow(endpoint)
 		if err != nil {
@@ -294,7 +291,7 @@ func (self *Vlrouter) RemoveLocalEndpoint(endpoint OfnetEndpoint) error {
 	if self.agent.GetRouterInfo() != nil {
 		path.nextHopIP = self.agent.GetRouterInfo().RouterIP
 	}
-	self.agent.DeleteLocalProtoRoute(path)
+	self.agent.DeleteLocalProtoRoute([]*OfnetProtoRouteInfo{path})
 
 	if endpoint.Ipv6Addr != nil && endpoint.Ipv6Addr.String() != "" {
 		err = self.RemoveLocalIpv6Flow(endpoint)
@@ -360,7 +357,7 @@ func (self *Vlrouter) AddLocalIpv6Flow(endpoint OfnetEndpoint) error {
 		if self.agent.GetRouterInfo() != nil {
 			path.nextHopIP = self.agent.GetRouterInfo().RouterIP
 		}
-		self.agent.AddLocalProtoRoute(path)
+		self.agent.AddLocalProtoRoute([]*OfnetProtoRouteInfo{path})
 	}
 
 	return nil
@@ -399,7 +396,7 @@ func (self *Vlrouter) RemoveLocalIpv6Flow(endpoint OfnetEndpoint) error {
 	if self.agent.GetRouterInfo() != nil {
 		path.nextHopIP = self.agent.GetRouterInfo().RouterIP
 	}
-	self.agent.DeleteLocalProtoRoute(path)
+	self.agent.DeleteLocalProtoRoute([]*OfnetProtoRouteInfo{path})
 
 	return nil
 }
@@ -454,10 +451,14 @@ func (self *Vlrouter) AddEndpoint(endpoint *OfnetEndpoint) error {
 			//maintainer in cache.
 			log.Debugf("Storing endpoint info in cache")
 			self.unresolvedEPs.Set(endpoint.EndpointID, endpoint.EndpointID)
+			return nil
 		}
 	}
 	if endpoint.EndpointType == "external-bgp" {
 		self.myBgpPeer = endpoint.IpAddr.String()
+		if endpoint.PortNo == 0 {
+			return nil
+		}
 	}
 
 	vrfid := self.agent.getvrfId(endpoint.Vrf)
@@ -529,7 +530,10 @@ func (self *Vlrouter) RemoveEndpoint(endpoint *OfnetEndpoint) error {
 	}
 
 	//Delete the endpoint if it is in the cache
-	self.unresolvedEPs.Remove(endpoint.EndpointID)
+	if _, ok := self.unresolvedEPs.Get(endpoint.EndpointID); ok {
+		self.unresolvedEPs.Remove(endpoint.EndpointID)
+		return nil
+	}
 
 	// Find the flow entry
 	//flowId := self.agent.getEndpointIdByIpVlan(endpoint.IpAddr, endpoint.Vlan)
@@ -792,7 +796,6 @@ func (self *Vlrouter) processArp(pkt protocol.Ethernet, inPort uint32) {
 						self.agent.incrStats("ArpReqUnknownEndpoint")
 						return
 					}
-
 				}
 			}
 
@@ -803,7 +806,6 @@ func (self *Vlrouter) processArp(pkt protocol.Ethernet, inPort uint32) {
 				if endpoint.PortNo == 0 {
 					log.Infof("Received ARP from BGP Peer on %s: Mac: %s", endpoint.PortNo, endpoint.MacAddrStr)
 					//learn the mac address and portno for the endpoint
-					self.RemoveEndpoint(endpoint)
 					endpoint.PortNo = inPort
 					endpoint.MacAddrStr = arpHdr.HWSrc.String()
 					self.agent.endpointDb.Set(endpoint.EndpointID, endpoint)
@@ -851,7 +853,6 @@ func (self *Vlrouter) processArp(pkt protocol.Ethernet, inPort uint32) {
 				if endpoint.PortNo == 0 {
 					log.Infof("Received ARP from BGP Peer on %s: Mac: %s", endpoint.PortNo, endpoint.MacAddrStr)
 					//learn the mac address and portno for the endpoint
-					self.RemoveEndpoint(endpoint)
 					endpoint.PortNo = inPort
 					endpoint.MacAddrStr = arpHdr.HWSrc.String()
 					self.agent.endpointDb.Set(endpoint.EndpointID, endpoint)
@@ -884,14 +885,12 @@ func (self *Vlrouter) resolveUnresolvedEPs(MacAddrStr string, portNo uint32) {
 	for id := range self.unresolvedEPs.IterBuffered() {
 		endpointID := id.Val.(string)
 		endpoint := self.agent.getEndpointByID(endpointID)
-		self.RemoveEndpoint(endpoint)
 		endpoint.PortNo = portNo
 		endpoint.MacAddrStr = MacAddrStr
 		self.agent.endpointDb.Set(endpoint.EndpointID, endpoint)
 		self.AddEndpoint(endpoint)
 		self.unresolvedEPs.Remove(endpointID)
 	}
-
 }
 
 // AddUplink adds an uplink to the switch
