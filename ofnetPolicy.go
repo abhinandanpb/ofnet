@@ -138,7 +138,6 @@ func (self *PolicyAgent) AddEndpoint(endpoint *OfnetEndpoint) error {
 	self.agent.vrfMutex.RLock()
 	vrfid := self.agent.vrfNameIdMap[*vrf]
 	self.agent.vrfMutex.RUnlock()
-	log.Infof("INSTALLED POLICY")
 	vrfMetadata, vrfMetadataMask := Vrfmetadata(*vrfid)
 	// Install the Dst group lookup flow
 	dstGrpFlow, err := self.dstGrpTable.NewFlow(ofctrl.FlowMatch{
@@ -162,7 +161,6 @@ func (self *PolicyAgent) AddEndpoint(endpoint *OfnetEndpoint) error {
 		log.Errorf("Error setting metadata %v for flow {%+v}. Err: %v", metadata, dstGrpFlow, err)
 		return err
 	}
-	log.Infof("SETMETADATA")
 	// Go to policy Table
 	err = dstGrpFlow.Next(self.policyTable)
 	if err != nil {

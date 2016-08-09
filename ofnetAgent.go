@@ -199,6 +199,7 @@ func NewOfnetAgent(bridgeName string, dpName string, localIp net.IP, rpcPort uin
 	return agent, nil
 }
 
+// incrStats increment a stats counter by name
 func (self *OfnetAgent) incrStats(statName string) {
 	self.statsMutex.Lock()
 	defer self.statsMutex.Unlock()
@@ -632,7 +633,7 @@ func (self *OfnetAgent) RemoveLocalEndpoint(portNo uint32) error {
 		}
 	}
 	self.masterDbMutex.Unlock()
-	log.Infof("local endpoint removed and withdrawn successfully")
+	log.Infof("Local endpoint removed and withdrawn successfully")
 	return nil
 }
 
