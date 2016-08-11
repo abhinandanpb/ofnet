@@ -21,7 +21,7 @@ test: start
 host-build:
 	./checks "./*.go ./ofctrl/ ./ovsdbDriver/ ./pqueue/ ./rpcHub/"
 	go get github.com/tools/godep
-	godep go install -race ./ ./ofctrl
+	godep go install ./ ./ofctrl
 
 host-test:
 	sudo -E PATH=$(PATH) /opt/gopath/bin/godep go test -v ./

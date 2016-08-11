@@ -345,13 +345,13 @@ func (self *OfnetBgp) AddProtoNeighbor(neighborInfo *OfnetProtoNeighborInfo) err
 
 	// Install the endpoint in datapath
 	// First, add the endpoint to local routing table
+	self.agent.endpointDb.Set(epreg.EndpointID, epreg)
 
 	err := self.agent.datapath.AddEndpoint(epreg)
 	if err != nil {
 		log.Errorf("Error adding endpoint: {%+v}. Err: %v", epreg, err)
 		return err
 	}
-	self.agent.endpointDb.Set(epreg.EndpointID, epreg)
 
 	self.myBgpPeer = neighborInfo.NeighborIP
 	go self.sendArp(self.stopArp)
@@ -574,11 +574,11 @@ func (self *OfnetBgp) monitorPeer() {
 			self.agent.datapath.RemoveEndpoint(endpoint)
 			endpoint.PortNo = 0
 
+			self.agent.endpointDb.Set(endpoint.EndpointID, endpoint)
 			err = self.agent.datapath.AddEndpoint(endpoint)
 			if err != nil {
 				log.Errorf("Error unresolving bgp peer %s ", self.myBgpPeer)
 			}
-			self.agent.endpointDb.Set(endpoint.EndpointID, endpoint)
 
 			var ep *OfnetEndpoint
 			for endpoint := range self.agent.endpointDb.IterBuffered() {
@@ -689,12 +689,12 @@ func (self *OfnetBgp) modRib(path *api.Path) error {
 		// Install the endpoint in datapath
 		// First, add the endpoint to local routing table
 
+		self.agent.endpointDb.Set(epreg.EndpointID, epreg)
 		err := self.agent.datapath.AddEndpoint(epreg)
 		if err != nil {
 			log.Errorf("Error adding endpoint: {%+v}. Err: %v", epreg, err)
 			return err
 		}
-		self.agent.endpointDb.Set(epreg.EndpointID, epreg)
 	} else {
 		log.Info("Received route withdraw from BGP for ", endpointIPNet)
 		endpoint := self.agent.getEndpointByIpVrf(endpointIPNet.IP, "default")
