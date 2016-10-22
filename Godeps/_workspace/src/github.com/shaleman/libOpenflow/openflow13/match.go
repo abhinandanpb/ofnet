@@ -166,6 +166,88 @@ func (m *MatchField) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+type MfSubField struct {
+	pad   []byte //FIXME: need to revisit. Currently 16 padding with bytes
+	Ofs   uint32 //Bit offset.
+	NBits uint32 // Number of bits
+}
+
+func NewMfSubField() MfSubField {
+	m := new(MfSubField)
+	m.pad = make([]byte, 16)
+	m.Ofs = 0
+	m.NBits = 0
+	return *m
+}
+
+func (m *MfSubField) Len() uint16 {
+	return 8 + 16
+}
+
+func (m *MfSubField) MarshalBinary() (data []byte, err error) {
+	data = make([]byte, int(m.Len()))
+
+	n := 0
+	copy(data[n:], m.pad)
+	n += len(m.pad)
+
+	binary.BigEndian.PutUint32(data[n:], m.Ofs)
+	n += 4
+
+	binary.BigEndian.PutUint32(data[n:], m.NBits)
+	n += 4
+
+	return
+}
+
+func (m *MfSubField) UnmarshalBinary(data []byte) error {
+
+	var n uint16 = 0
+	n = 16
+
+	m.Ofs = binary.BigEndian.Uint32(data[n:])
+	n += 4
+
+	m.NBits = binary.BigEndian.Uint32(data[n:])
+	n += 4
+
+	return nil
+}
+
+/*
+type MfField struct {
+	MfFieldID             uint16
+	Name                  string
+	ExtraName             string
+	NBytes                uint
+	NBits                 uint
+	VariableLen           bool
+	MfMaskable            uint16
+	MfString              uint16
+	MfPrereqs             uint16
+	Writable              bool
+	UsableProtocolsExact  uint16
+	UsableProtocolsCidr   uint16
+	UsableProtocolBitwise uint16
+	FlowBe32Ofs           int
+}
+
+func (m *MfField) Len() uint16 {
+	return 24 + 8 + 2 + len(m.Name) + len(m.ExtraName)
+}
+
+func (m *MfField) UnmarshalBinary() {
+
+  n := 0
+  m.MfFieldID , err =
+
+}
+
+func (m *MfField) MarshalBinary() {
+    n;
+}
+
+*/
 func DecodeMatchField(class uint16, field uint8, data []byte) util.Message {
 	if class == OXM_CLASS_OPENFLOW_BASIC {
 		var val util.Message
@@ -1157,6 +1239,7 @@ type TunnelIpv4DstField struct {
 func (m *TunnelIpv4DstField) Len() uint16 {
 	return 4
 }
+
 func (m *TunnelIpv4DstField) MarshalBinary() (data []byte, err error) {
 	data = make([]byte, 4)
 	copy(data, m.TunnelIpv4Dst.To4())

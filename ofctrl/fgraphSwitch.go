@@ -18,6 +18,8 @@ package ofctrl
 
 import (
 	"errors"
+	"net"
+
 	"github.com/shaleman/libOpenflow/openflow13"
 )
 
@@ -149,4 +151,28 @@ func (self *OFSwitch) NewFlood() (*Flood, error) {
 	flood.install()
 
 	return flood, nil
+}
+
+// Create a new load balance list
+func (self *OFSwitch) NewLoadBalancer() (*LoadBal, error) {
+	loadBal := new(LoadBal)
+
+	loadBal.Switch = self
+	loadBal.GroupID = 368 // FIXME to uniqueGroupId
+	loadBal.TableID = 4
+	loadBal.Proto = 0
+	loadBal.Zone = 1
+	backend1 := net.ParseIP("10.1.1.2")
+	backend2 := net.ParseIP("10.1.1.3")
+	backend3 := net.ParseIP("10.1.1.4")
+	loadBal.Backends = append(loadBal.Backends, Backend{IP: backend1})
+	loadBal.Backends = append(loadBal.Backends, Backend{IP: backend2})
+	loadBal.Backends = append(loadBal.Backends, Backend{IP: backend3})
+
+	uniqueGroupId += 1
+
+	// Install it in HW right away
+	loadBal.install()
+
+	return loadBal, nil
 }

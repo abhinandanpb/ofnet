@@ -3,7 +3,8 @@ package openflow13
 import (
 	"encoding/binary"
 	"errors"
-
+	"net"
+	log "github.com/Sirupsen/logrus"
 	"github.com/shaleman/libOpenflow/util"
 )
 
@@ -26,7 +27,21 @@ const (
 	ActionType_PushPbb    = 26
 	ActionType_PopPbb     = 27
 
+	//NXA
+	ActionType_Ct  = 42
+	ActionType_Nat = 43
+
 	ActionType_Experimenter = 0xffff
+)
+
+//Nx Nat range
+const (
+	NxNatRangeIPv4Min  = 1 << 0
+	NxNatRangeIPv4Max = 1 << 1
+	NxNatRangeIPv6Min  = 1 << 2
+	NxNatRangeIPv6Max  = 1 << 3
+	NxNatRangeProtoMin = 1 << 4
+	NxNatRangeProtoMax = 1 << 5
 )
 
 type Action interface {
@@ -37,6 +52,7 @@ type Action interface {
 type ActionHeader struct {
 	Type   uint16
 	Length uint16
+	Vendor uint32
 }
 
 func (a *ActionHeader) Header() *ActionHeader {
@@ -44,13 +60,14 @@ func (a *ActionHeader) Header() *ActionHeader {
 }
 
 func (a *ActionHeader) Len() (n uint16) {
-	return 4
+	return 8
 }
 
 func (a *ActionHeader) MarshalBinary() (data []byte, err error) {
 	data = make([]byte, a.Len())
 	binary.BigEndian.PutUint16(data[:2], a.Type)
 	binary.BigEndian.PutUint16(data[2:4], a.Length)
+	binary.BigEndian.PutUint32(data[4:8], a.Vendor)
 	return
 }
 
@@ -61,6 +78,7 @@ func (a *ActionHeader) UnmarshalBinary(data []byte) error {
 	}
 	a.Type = binary.BigEndian.Uint16(data[:2])
 	a.Length = binary.BigEndian.Uint16(data[2:4])
+	a.Vendor = binary.BigEndian.Uint32(data[4:8])
 	return nil
 }
 
@@ -101,6 +119,10 @@ func DecodeAction(data []byte) Action {
 		a = new(ActionPush)
 	case ActionType_PopPbb:
 		a = new(ActionHeader)
+	case ActionType_Ct:
+		a = new(ActionCT)
+	case ActionType_Nat:
+		a = new(ActionNat)
 	}
 	a.UnmarshalBinary(data)
 	return a
@@ -417,6 +439,332 @@ func (a *ActionSetField) UnmarshalBinary(data []byte) error {
 	n += int(a.ActionHeader.Len())
 	err = a.Field.UnmarshalBinary(data[n:])
 	n += int(a.Field.Len())
+
+	return err
+}
+
+type ActionCT struct {
+	ActionHeader
+	SubType     uint16
+	Flags       uint16
+	ZoneSrc     uint32
+	ZoneImm     uint16
+	RecircTable uint8
+	pad         []byte // making it 8byte aligned (padding it with 5 byte)
+	Alg         uint16
+}
+
+func NewActionCT(zone uint16, tableId uint8) *ActionCT {
+	a := new(ActionCT)
+	a.Type = ActionType_Experimenter 
+	a.SubType = 0x0023
+	a.Flags = 1
+	a.Vendor = 0x00002320 
+	a.ZoneImm = zone
+	a.Alg = 0
+	a.RecircTable = tableId
+	a.pad = make([]byte, 3)
+	log.Infof("NEW ACTION CT is called")
+	return a
+}
+
+func (a *ActionCT) Len() uint16 {
+	log.Infof("ActionCT len is called")
+	return a.ActionHeader.Len() + 13 + 3  
+}
+
+func (a *ActionCT) MarshalBinary() (data []byte, err error) {
+	log.Infof("ACTION CT MARSHAL BINARY IS CALLED ")
+	data = make([]byte, int(a.Len()))
+	b := make([]byte, 0)
+	n := 0
+
+	b, err = a.ActionHeader.MarshalBinary()
+	copy(data, b)
+	n += int(a.ActionHeader.Len())
+	
+	binary.BigEndian.PutUint16(data[n:], a.SubType)
+        n += 2
+
+	binary.BigEndian.PutUint16(data[n:], a.Flags)
+	n += 2
+
+	binary.BigEndian.PutUint32(data[n:], a.ZoneSrc)
+        n += 4
+	
+	binary.BigEndian.PutUint16(data[n:], a.ZoneImm)
+	n += 2
+
+	data[n] = a.RecircTable
+	n += 1
+
+	copy(data[n:], a.pad)
+	n += len(a.pad)
+	
+	binary.BigEndian.PutUint16(data[n:], a.Alg)
+        n += 2
+	return
+}
+
+func (a *ActionCT) UnmarshalBinary(data []byte) error {
+	log.Infof("ACTION CT UNMARSHALL BINARY IS CALLED")
+	if len(data) < int(a.Len()) {
+		return errors.New("The []byte the wrong size to unmarshal an " +
+			"ActionOutput message.")
+	}
+	n := 0
+	err := a.ActionHeader.UnmarshalBinary(data[n:])
+	n += int(a.ActionHeader.Len())
+
+        a.SubType = binary.BigEndian.Uint16(data[n:])
+        n += 2
+
+	a.Flags = binary.BigEndian.Uint16(data[n:])
+	n += 2
+
+	a.ZoneSrc = binary.BigEndian.Uint32(data[n:])
+	n += 4 
+
+	a.RecircTable = data[n]
+	n += 1
+
+	copy(a.pad, data[n:n+3])
+	n += 3 
+	
+	a.Alg = binary.BigEndian.Uint16(data[n:])
+        n += 2
+
+	return err
+}
+
+type Range struct {
+	RangeAF  uint16
+	MinIP    net.IP
+	MaxIP    net.IP
+	MinIPV6  net.IP
+	MaxIPV6  net.IP
+	MinProto uint16
+	MaxProto uint16
+	pad      []byte
+}
+
+func NewRange(minIP,maxIP,minIPv6,maxIPv6 net.IP) Range {
+	r := new(Range)
+	n:=0
+	if !minIP.Equal(net.IPv4zero){
+	   r.MinIP = minIP
+           r.RangeAF |= NxNatRangeIPv4Min
+	   log.Infof("%d",r.RangeAF)
+	   n+=4
+	}
+	if !maxIP.Equal(net.IPv4zero){
+           r.MaxIP = maxIP
+           r.RangeAF |= NxNatRangeIPv4Max
+	   n+=4
+        }
+        if !minIPv6.Equal(net.IPv6zero){
+           r.MinIPV6 = minIPv6
+           r.RangeAF |= NxNatRangeIPv6Min
+	   n+=16
+        }
+        if !maxIPv6.Equal(net.IPv6zero){
+           r.MaxIPV6 = maxIPv6
+           r.RangeAF |= NxNatRangeIPv6Max
+	   n+=16
+        }
+	
+	log.Infof("The lenght of nat structure for Marshalling is %d \n",n)
+        if n%8 !=0{
+                padding:= 8-(n%8)
+                log.Infof("The Padding is %d \n",padding)
+                r.pad=make([]byte,padding)
+                log.Infof("%v",r.pad)
+        }
+	
+	return *r
+}
+
+func (a *Range) MarshalBinary() (data []byte, err error) {
+	data = make([]byte, int(a.Len()))
+	n := 0
+        log.Infof("COMING HERE to marshal nat %#v !!!!",a)
+        binary.BigEndian.PutUint16(data[n:], a.RangeAF)
+        n += 2
+	
+	if a.RangeAF & NxNatRangeIPv4Min > 0 {
+		copy(data[n:], a.MinIP.To4())
+		n += 4
+		log.Infof("data:%v",data)
+	}
+	if a.RangeAF & NxNatRangeIPv4Max > 0 {
+		copy(data[n:], a.MaxIP.To4())
+		n += 4
+	}
+	if a.RangeAF & NxNatRangeIPv6Min > 0 {
+		copy(data[n:], a.MinIPV6)
+		n += 16
+	}
+	if a.RangeAF & NxNatRangeIPv6Max > 0 {
+		copy(data[n:], a.MaxIPV6)
+		n += 16
+	}
+	if a.RangeAF & NxNatRangeProtoMin > 0 {
+		binary.BigEndian.PutUint16(data[n:], a.MinProto)
+		n += 2
+	}
+	if a.RangeAF & NxNatRangeProtoMax > 0 {
+		binary.BigEndian.PutUint16(data[n:], a.MaxProto)
+		n += 2
+	}
+	
+	copy(data[n:],a.pad)
+
+	log.Infof("MARSHALLING NAT: %x \n",data)
+	return
+}
+
+func (a *Range) UnmarshalBinary(data []byte) error {
+
+	if len(data) < int(a.Len()) {
+		return errors.New("The []byte the wrong size to unmarshal an " +
+			"ActionOutput message.")
+	}
+	n := 0
+
+        a.RangeAF = binary.BigEndian.Uint16(data[n:])
+        n += 2
+
+
+	if a.RangeAF & NxNatRangeIPv4Min > 0 {
+		a.MinIP = net.IPv4(data[n], data[n+1], data[n+2], data[n+3])
+		n += 4
+	}
+	if a.RangeAF & NxNatRangeIPv4Max > 0 {
+		a.MaxIP = net.IPv4(data[n], data[n+1], data[n+2], data[n+3])
+		n += 4
+	}
+	if a.RangeAF & NxNatRangeIPv6Min > 0 {
+		a.MinIPV6 = make([]byte, 16)
+		copy(a.MinIPV6, data[n:])
+		n += 16
+	}
+	if a.RangeAF & NxNatRangeIPv6Max > 0 {
+		a.MaxIPV6 = make([]byte, 16)
+		copy(a.MaxIPV6, data[n:])
+		n += 16
+	}
+	if a.RangeAF & NxNatRangeProtoMin > 0 {
+		a.MinProto = binary.BigEndian.Uint16(data[n:])
+		n += 2
+	}
+	if a.RangeAF & NxNatRangeProtoMax > 0 {
+		a.MaxProto = binary.BigEndian.Uint16(data[n:])
+		n += 2
+	}
+
+	return nil
+}
+
+func (a *Range) Len() (n uint16) {
+
+	n = 2 
+
+	if a.RangeAF & NxNatRangeIPv4Min > 0 {
+		n += 4
+	}
+	if a.RangeAF & NxNatRangeIPv4Max > 0 {
+		n += 4
+	}
+	if a.RangeAF & NxNatRangeIPv6Min > 0 {
+		n += 16
+	}
+	if a.RangeAF & NxNatRangeIPv6Max > 0 {
+		n += 16
+	}
+	if a.RangeAF & NxNatRangeProtoMin > 0 {
+		n += 2
+	}
+	if a.RangeAF & NxNatRangeProtoMax > 0 {
+		n += 2
+	}
+	if len(a.pad)!=0{
+		n+= uint16(len(a.pad)) 
+	}
+	
+	return 
+}
+
+type ActionNat struct {
+	ActionHeader
+	SubType  uint16
+	Flags    uint16
+	NatRange Range
+	pad      []byte // padding with 2 byte
+}
+
+func NewActionNat() *ActionNat {
+	nat := new(ActionNat)
+	nat.Type = 0xffff
+	nat.Vendor = 0x00002320
+	nat.SubType = 0x0024
+	nat.Flags = 2 //need to check once
+	nat.pad = make([]byte, 2)
+	log.Infof("NAT IS %#v \n",nat)
+	return nat
+}
+
+func (a *ActionNat) Len() uint16 {
+	return a.ActionHeader.Len() + 4 + a.NatRange.Len() + 2
+}
+
+func (a *ActionNat) MarshalBinary() (data []byte, err error) {
+
+	data = make([]byte, int(a.Len()))
+	b := make([]byte, 0)
+	n := 0
+
+	b, err = a.ActionHeader.MarshalBinary()
+	copy(data, b)
+	n += int(a.ActionHeader.Len())
+        
+	binary.BigEndian.PutUint16(data[n:], a.SubType)
+        n += 2
+	
+	copy(data[n:], a.pad)
+        n += len(a.pad)
+
+	binary.BigEndian.PutUint16(data[n:], a.Flags)
+        n += 2
+
+	b, err = a.NatRange.MarshalBinary()
+	copy(data[n:], b)
+	n += int(a.NatRange.Len())
+
+	return
+}
+
+func (a *ActionNat) UnmarshalBinary(data []byte) error {
+
+	if len(data) < int(a.Len()) {
+		return errors.New("The []byte the wrong size to unmarshal an " +
+			"ActionOutput message.")
+	}
+	
+	n := 0
+	err := a.ActionHeader.UnmarshalBinary(data[n:])
+	n += int(a.ActionHeader.Len())
+
+	a.SubType = binary.BigEndian.Uint16(data[n:])
+        n += 2
+	
+	copy(a.pad, data[n:])
+	n += 2 
+
+        a.Flags = binary.BigEndian.Uint16(data[n:])
+        n += 2
+	
+        err = a.NatRange.UnmarshalBinary(data[n:])
+        n += int(a.NatRange.Len())
 
 	return err
 }

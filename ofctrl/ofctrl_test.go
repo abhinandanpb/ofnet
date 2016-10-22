@@ -680,3 +680,14 @@ func TestMatchSetUdpFields(t *testing.T) {
 		t.Errorf("in port flow still found in OVS after deleting it.")
 	}
 }
+
+//
+func TestLoadBalAddDelete(t *testing.T) {
+	l, err := ofActor.Switch.NewLoadBalancer()
+	if err != nil {
+		log.Infof("ERROR IS %s", err)
+	}
+	log.Infof("The group id %d", l.GroupID)
+	out, err := runOfctlCmd("dump-groups", "ovsbr11")
+	log.Infof("dump is %s , err: %s", string(out), err)
+}
