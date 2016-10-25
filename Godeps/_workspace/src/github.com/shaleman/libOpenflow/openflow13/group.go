@@ -181,6 +181,7 @@ func (b *Bucket) MarshalBinary() (data []byte, err error) {
 		bytes, err = a.MarshalBinary()
 		data = append(data, bytes...)
 	}
+	log.Infof("Marshalling BUCKET %x \n",data)
 
 	return
 }

@@ -452,6 +452,7 @@ type ActionCT struct {
 	RecircTable uint8
 	pad         []byte // making it 8byte aligned (padding it with 5 byte)
 	Alg         uint16
+	Actions     []Action
 }
 
 func NewActionCT(zone uint16, tableId uint8) *ActionCT {
@@ -470,12 +471,20 @@ func NewActionCT(zone uint16, tableId uint8) *ActionCT {
 
 func (a *ActionCT) Len() uint16 {
 	log.Infof("ActionCT len is called")
-	return a.ActionHeader.Len() + 13 + 3  
+	var len uint16	
+	for _,act := range a.Actions{
+	    len += act.Len()	    
+	}
+	return a.ActionHeader.Len() + 13 + 3 + len 
 }
 
-func (a *ActionCT) MarshalBinary() (data []byte, err error) {
+func (a *ActionCT) AddAction(act Action) {
+	a.Actions = append(a.Actions,act)
+}
+
+func (a *ActionCT) MarshalBinary() (data []byte,err error) {
 	log.Infof("ACTION CT MARSHAL BINARY IS CALLED ")
-	data = make([]byte, int(a.Len()))
+	data = make([]byte, int(a.ActionHeader.Len()+13+3))
 	b := make([]byte, 0)
 	n := 0
 
@@ -503,7 +512,14 @@ func (a *ActionCT) MarshalBinary() (data []byte, err error) {
 	
 	binary.BigEndian.PutUint16(data[n:], a.Alg)
         n += 2
-	return
+	log.Infof("Before : MARSHALLING CT : %x \n",data)
+	for _, act := range a.Actions {
+		bytes, _ := act.MarshalBinary()
+		data = append(data, bytes...)
+	}
+        log.Infof("MARSHALLING CT : %x \n",data)	
+
+	return 
 }
 
 func (a *ActionCT) UnmarshalBinary(data []byte) error {
