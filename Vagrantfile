@@ -41,6 +41,30 @@ systemctl start openvswitch
 (ovs-vsctl set-manager tcp:127.0.0.1:6640 && \
  ovs-vsctl set-manager ptcp:6640) || exit 1
 
+sudo yum install -y rpm-build
+sudo yum install -y autoconf automake libtool
+sudo yum install -y systemd-units openssl openssl-devel
+sudo yum install -y python python-twisted-core python-zope-interface python-six
+sudo yum install -y desktop-file-utils
+sudo yum install -y groff graphviz
+sudo yum install -y procps-ng
+sudo yum install -y selinux-policy-devel
+sudo yum install -y libcap-ng-devel
+
+git clone https://github.com/openvswitch/ovs.git
+cd ovs
+./boot.sh
+./configure
+#git apply /opt/gopath/src/github.com/contiv/ofnet/reverse_engineer_v10.diff 
+make rpm-fedora RPMBUILD_OPT="--without check"
+make rpm-fedora-kmod
+cd /home/vagrant/ovs/rpm/rpmbuild/RPMS/x86_64/
+sudo yum remove -y openvswitch
+sudo rpm -i openvswitch-2.6.90-1.el7.centos.x86_64.rpm
+sudo rpm -i openvswitch-kmod-2.6.90-1.el7.centos.x86_64.rpm
+sudo /usr/share/openvswitch/scripts/ovs-ctl stop
+sudo /usr/share/openvswitch/scripts/ovs-ctl start
+
 SCRIPT
 
 VAGRANTFILE_API_VERSION = "2"

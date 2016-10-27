@@ -34,6 +34,11 @@ const (
 	ActionType_Experimenter = 0xffff
 )
 
+const(
+	NxVendorID = 0x00002320
+	NxSubtypeCT = 0x0023
+	NxSubtypeNat = 0x0024 
+)
 //Nx Nat range
 const (
 	NxNatRangeIPv4Min  = 1 << 0
@@ -44,6 +49,7 @@ const (
 	NxNatRangeProtoMax = 1 << 5
 )
 
+
 type Action interface {
 	Header() *ActionHeader
 	util.Message
@@ -52,7 +58,6 @@ type Action interface {
 type ActionHeader struct {
 	Type   uint16
 	Length uint16
-	Vendor uint32
 }
 
 func (a *ActionHeader) Header() *ActionHeader {
@@ -60,14 +65,13 @@ func (a *ActionHeader) Header() *ActionHeader {
 }
 
 func (a *ActionHeader) Len() (n uint16) {
-	return 8
+	return 4 
 }
 
 func (a *ActionHeader) MarshalBinary() (data []byte, err error) {
 	data = make([]byte, a.Len())
 	binary.BigEndian.PutUint16(data[:2], a.Type)
 	binary.BigEndian.PutUint16(data[2:4], a.Length)
-	binary.BigEndian.PutUint32(data[4:8], a.Vendor)
 	return
 }
 
@@ -78,7 +82,6 @@ func (a *ActionHeader) UnmarshalBinary(data []byte) error {
 	}
 	a.Type = binary.BigEndian.Uint16(data[:2])
 	a.Length = binary.BigEndian.Uint16(data[2:4])
-	a.Vendor = binary.BigEndian.Uint32(data[4:8])
 	return nil
 }
 
@@ -445,6 +448,7 @@ func (a *ActionSetField) UnmarshalBinary(data []byte) error {
 
 type ActionCT struct {
 	ActionHeader
+	Vendor      uint32
 	SubType     uint16
 	Flags       uint16
 	ZoneSrc     uint32
@@ -458,9 +462,9 @@ type ActionCT struct {
 func NewActionCT(zone uint16, tableId uint8) *ActionCT {
 	a := new(ActionCT)
 	a.Type = ActionType_Experimenter 
-	a.SubType = 0x0023
+	a.SubType = NxSubtypeCT 
 	a.Flags = 1
-	a.Vendor = 0x00002320 
+	a.Vendor = NxVendorID 
 	a.ZoneImm = zone
 	a.Alg = 0
 	a.RecircTable = tableId
@@ -475,7 +479,7 @@ func (a *ActionCT) Len() uint16 {
 	for _,act := range a.Actions{
 	    len += act.Len()	    
 	}
-	return a.ActionHeader.Len() + 13 + 3 + len 
+	return a.ActionHeader.Len() + 17 + 3 + len 
 }
 
 func (a *ActionCT) AddAction(act Action) {
@@ -484,14 +488,18 @@ func (a *ActionCT) AddAction(act Action) {
 
 func (a *ActionCT) MarshalBinary() (data []byte,err error) {
 	log.Infof("ACTION CT MARSHAL BINARY IS CALLED ")
-	data = make([]byte, int(a.ActionHeader.Len()+13+3))
+	//Create buffer for CT message and attach the actions depending on options
+	data = make([]byte, int(a.ActionHeader.Len()+17+3))
 	b := make([]byte, 0)
 	n := 0
 
 	b, err = a.ActionHeader.MarshalBinary()
 	copy(data, b)
 	n += int(a.ActionHeader.Len())
-	
+
+	binary.BigEndian.PutUint32(data[n:], a.Vendor)
+	n += 4
+
 	binary.BigEndian.PutUint16(data[n:], a.SubType)
         n += 2
 
@@ -531,6 +539,9 @@ func (a *ActionCT) UnmarshalBinary(data []byte) error {
 	n := 0
 	err := a.ActionHeader.UnmarshalBinary(data[n:])
 	n += int(a.ActionHeader.Len())
+        
+        a.Vendor = binary.BigEndian.Uint32(data[n:])
+	n += 4
 
         a.SubType = binary.BigEndian.Uint16(data[n:])
         n += 2
@@ -712,6 +723,7 @@ func (a *Range) Len() (n uint16) {
 
 type ActionNat struct {
 	ActionHeader
+	Vendor   uint32
 	SubType  uint16
 	Flags    uint16
 	NatRange Range
@@ -721,8 +733,8 @@ type ActionNat struct {
 func NewActionNat() *ActionNat {
 	nat := new(ActionNat)
 	nat.Type = 0xffff
-	nat.Vendor = 0x00002320
-	nat.SubType = 0x0024
+	nat.Vendor = NxVendorID 
+	nat.SubType = NxSubtypeNat
 	nat.Flags = 2 //need to check once
 	nat.pad = make([]byte, 2)
 	log.Infof("NAT IS %#v \n",nat)
@@ -730,7 +742,7 @@ func NewActionNat() *ActionNat {
 }
 
 func (a *ActionNat) Len() uint16 {
-	return a.ActionHeader.Len() + 4 + a.NatRange.Len() + 2
+	return a.ActionHeader.Len() + 8 + a.NatRange.Len() + 2
 }
 
 func (a *ActionNat) MarshalBinary() (data []byte, err error) {
@@ -742,7 +754,10 @@ func (a *ActionNat) MarshalBinary() (data []byte, err error) {
 	b, err = a.ActionHeader.MarshalBinary()
 	copy(data, b)
 	n += int(a.ActionHeader.Len())
-        
+       
+	binary.BigEndian.PutUint32(data[n:], a.Vendor)
+        n += 4 
+	
 	binary.BigEndian.PutUint16(data[n:], a.SubType)
         n += 2
 	
@@ -770,6 +785,9 @@ func (a *ActionNat) UnmarshalBinary(data []byte) error {
 	err := a.ActionHeader.UnmarshalBinary(data[n:])
 	n += int(a.ActionHeader.Len())
 
+	a.Vendor = binary.BigEndian.Uint32(data[n:])
+        n += 4
+	
 	a.SubType = binary.BigEndian.Uint16(data[n:])
         n += 2
 	
